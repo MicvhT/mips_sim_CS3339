@@ -1,4 +1,4 @@
-// #include data structures file 
+#include mips_core.h
 
 DecodedInstruction decode(uint32_t instruction) {
     DecodedInstruction decoded;
@@ -26,3 +26,4 @@ DecodedInstruction decode(uint32_t instruction) {
 	}
 	return decoded;
 }
+
