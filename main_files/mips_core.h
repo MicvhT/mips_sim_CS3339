@@ -19,11 +19,10 @@ using namespace std;
 // Core Data Structures & Utilities for MIPS Pipeline Simulator
 // =============================================================
 // Includes:
-//  - Instruction and Opcode definitions
+//  - Opcode definitions
 //  - RegisterFile class
 //  - Memory class
 //  - ALU component
-//  - Pipeline stage register structs
 //  - Utility functions
 //
 // Author: Chazon Mingarine
@@ -147,4 +146,5 @@ inline Opcode strToOpcode(const string &s) {
 
 
 #endif // MIPS_CORE_H_INCLUDED
+
 
