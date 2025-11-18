@@ -1,5 +1,10 @@
-#include mips_core.h
+#include "mips_core.h"
 
+enum InstructionType {
+    R_TYPE,
+    I_TYPE,
+    J_TYPE
+};
 DecodedInstruction decode(uint32_t instruction) {
     DecodedInstruction decoded;
     
@@ -26,4 +31,5 @@ DecodedInstruction decode(uint32_t instruction) {
 	}
 	return decoded;
 }
+
 
