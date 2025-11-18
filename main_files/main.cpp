@@ -1,4 +1,5 @@
 #include "mips_ir.hpp"
+#include "mips_core.h"
 #include "mips_pipeline.cpp"
 #include <fstream>
 #include <sstream>
@@ -9,13 +10,6 @@
 #include <cctype>
 
 using namespace std;
-
-// Helper function to trim whitespace
-inline string trim(const string& s) {
-    auto start = s.find_first_not_of(" \t");
-    auto end = s.find_last_not_of(" \t");
-    return (start == string::npos) ? "" : s.substr(start, end - start + 1);
-}
 
 // Helper function to parse instruction from string directly to IR format
 Instruction parseInstruction(const string& line) {
@@ -47,6 +41,7 @@ Instruction parseInstruction(const string& line) {
     else if (opcodeStr == "SW") instr.op = Op::SW;
     else if (opcodeStr == "BEQ") instr.op = Op::BEQ;
     else if (opcodeStr == "J") instr.op = Op::J;
+    else if (opcodeStr == "HALT") instr.op = Op::HALT;
     else {
         instr.op = Op::NOP;
         return instr;
@@ -194,21 +189,23 @@ int main(int argc, char* argv[]) {
     cout << string(60, '=') << endl;
     
     const auto& regs = pipeline.regs();
+    const vector<string> regNames = {
+        "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+        "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"
+    };
+    
+    // Print header once
+    cout << left << setw(8) << "Reg"
+         << setw(8) << "Name"
+         << setw(12) << "Decimal"
+         << setw(12) << "Hex" << endl;
+    
     for (int i = 0; i < 32; i += 4) {
-        cout << left << setw(8) << "Reg"
-             << setw(8) << "Name"
-             << setw(12) << "Decimal"
-             << setw(12) << "Hex" << endl;
-        
         for (int j = i; j < min(i + 4, 32); ++j) {
             int32_t value = regs[j];
-            const vector<string> regNames = {
-                "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
-                "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
-                "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
-                "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"
-            };
-            string name = (j < regNames.size()) ? regNames[j] : "???";
+            string name = (static_cast<size_t>(j) < regNames.size()) ? regNames[j] : "???";
             
             cout << left << setw(8) << ("$" + to_string(j))
                  << setw(8) << name
@@ -241,4 +238,3 @@ int main(int argc, char* argv[]) {
     cout << "\nTotal cycles: " << pipeline.cycles() << endl;
     
     return 0;
-}
