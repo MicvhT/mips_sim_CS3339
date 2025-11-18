@@ -44,33 +44,46 @@ Instruction parseInstruction(const string& line) {
     }
     instr.op = it->second;
 
-    string reg;
-    char comma = ',', paren;
+    string reg1, reg2, reg3;
 
     switch (instr.op) {
         case Op::ADD: case Op::SUB: case Op::MUL: case Op::AND: case Op::OR:
-            iss >> reg >> comma >> reg >> comma >> reg;
-            instr.rd = stoi(reg.substr(reg.find('$') + 1));
-            instr.rs = stoi(reg.substr(reg.find('$') + 1));
-            instr.rt = stoi(reg.substr(reg.find('$') + 1));
+            iss >> reg1;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> reg2;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> reg3;
+            instr.rd = stoi(reg1.substr(reg1.find('$') + 1));
+            instr.rs = stoi(reg2.substr(reg2.find('$') + 1));
+            instr.rt = stoi(reg3.substr(reg3.find('$') + 1));
             break;
 
         case Op::SLL: case Op::SRL:
-            iss >> reg >> comma >> reg >> comma >> instr.shamt;
-            instr.rd = stoi(reg.substr(reg.find('$') + 1));
-            instr.rt = stoi(reg.substr(reg.find('$') + 1));
+            iss >> reg1;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> reg2;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> instr.shamt;
+            instr.rd = stoi(reg1.substr(reg1.find('$') + 1));
+            instr.rt = stoi(reg2.substr(reg2.find('$') + 1));
             break;
 
         case Op::ADDI:
-            iss >> reg >> comma >> reg >> comma >> instr.imm;
-            instr.rt = stoi(reg.substr(reg.find('$') + 1));
-            instr.rs = stoi(reg.substr(reg.find('$') + 1));
+            iss >> reg1;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> reg2;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> instr.imm;
+            instr.rt = stoi(reg1.substr(reg1.find('$') + 1));
+            instr.rs = stoi(reg2.substr(reg2.find('$') + 1));
             break;
 
         case Op::LW: case Op::SW: {
             string temp;
-            iss >> reg >> comma >> temp;
-            instr.rt = stoi(reg.substr(reg.find('$') + 1));
+            iss >> reg1;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> temp;
+            instr.rt = stoi(reg1.substr(reg1.find('$') + 1));
             size_t open = temp.find('(');
             string offset = temp.substr(0, open);
             string rs_str = temp.substr(open + 1, temp.find(')') - open - 1);
@@ -79,14 +92,18 @@ Instruction parseInstruction(const string& line) {
             break;
         }
 
-        case Op::BEQ:
-            iss >> reg >> comma >> reg >> comma;
-            instr.rs = stoi(reg.substr(reg.find('$') + 1));
-            instr.rt = stoi(reg.substr(reg.find('$') + 1));
+        case Op::BEQ: {
+            iss >> reg1;
+            if (iss.peek() == ',') iss.ignore();
+            iss >> reg2;
+            if (iss.peek() == ',') iss.ignore();
             string label;
             iss >> label;
+            instr.rs = stoi(reg1.substr(reg1.find('$') + 1));
+            instr.rt = stoi(reg2.substr(reg2.find('$') + 1));
             instr.raw_label = label;
             break;
+        }
 
         case Op::J:
             iss >> instr.addr;
@@ -139,4 +156,5 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
 
