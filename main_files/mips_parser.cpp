@@ -5,6 +5,16 @@ enum InstructionType {
     I_TYPE,
     J_TYPE
 };
+
+struct DecodedInstruction {
+    uint8_t opcode;
+    InstructionType type;
+    uint8_t rs, rt, rd;
+    uint8_t shamt;
+    uint8_t funct;
+    int16_t immediate;  // signed for sign extension
+    uint32_t address;
+}
 DecodedInstruction decode(uint32_t instruction) {
     DecodedInstruction decoded;
     
@@ -31,5 +41,6 @@ DecodedInstruction decode(uint32_t instruction) {
 	}
 	return decoded;
 }
+
 
 
