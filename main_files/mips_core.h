@@ -1,7 +1,6 @@
 #ifndef MIPS_CORE_H_INCLUDED
 #define MIPS_CORE_H_INCLUDED
 
-
 #include <array>
 #include <cstdint>
 #include <string>
@@ -14,41 +13,16 @@
 
 using namespace std;
 
-//
-// =============================================================
-// Core Data Structures & Utilities for MIPS Pipeline Simulator
-// =============================================================
-// Includes:
-//  - Opcode definitions
-//  - RegisterFile class
-//  - Memory class
-//  - ALU component
-//  - Utility functions
-//
-// Author: Chazon Mingarine
-// Role: Core Data Structures & Utilities
-// =============================================================
-//
-
-//
-// ---------- Constants ----------
-//
 constexpr int NUM_REGS = 32;
-constexpr int MEM_SIZE = 1024; // in words (4 bytes per word)
+constexpr int MEM_SIZE = 1024; // (4 bytes per word)
 
-//
-// ---------- Enums ----------
-//
+
 enum class Opcode {
     ADD, ADDI, SUB, MUL, AND, OR,
     SLL, SRL, LW, SW, BEQ, J, NOP, INVALID
 };
 
 
-
-//
-// ---------- Register File ----------
-//
 class RegisterFile {
 private:
     array<int32_t, NUM_REGS> regs{};
@@ -57,7 +31,7 @@ public:
     RegisterFile() { regs.fill(0); }
 
     int32_t read(int reg) const {
-        if (reg == 0) return 0; // $zero always 0
+        if (reg == 0) return 0; // $zero is always 0
         return regs[reg];
     }
 
@@ -73,9 +47,6 @@ public:
     }
 };
 
-//
-// ---------- Memory ----------
-//
 class Memory {
 private:
     vector<int32_t> mem;
@@ -103,9 +74,6 @@ public:
     }
 };
 
-//
-// ---------- ALU ----------
-//
 class ALU {
 public:
     static int32_t operate(const string &op, int32_t a, int32_t b) {
@@ -120,11 +88,6 @@ public:
     }
 };
 
-
-
-//
-// ---------- Utility Functions ----------
-//
 inline string trim(const string &s) {
     auto start = s.find_first_not_of(" \t");
     auto end = s.find_last_not_of(" \t");
@@ -143,8 +106,7 @@ inline Opcode strToOpcode(const string &s) {
     return (it != table.end()) ? it->second : Opcode::INVALID;
 }
 
+#endif 
 
-
-#endif // MIPS_CORE_H_INCLUDED
 
 
