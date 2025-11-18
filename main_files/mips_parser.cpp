@@ -1,3 +1,4 @@
+//mips_parser.cpp
 #include "mips_core.h"
 
 enum InstructionType {
@@ -42,6 +43,7 @@ DecodedInstruction decode(uint32_t instruction) {
 	}
 	return decoded;
 }
+
 
 
 
