@@ -19,8 +19,10 @@ enum class Op {
 struct IRInstruction {
     Op op = Op::NOP;
     uint8_t rs = 0, rt = 0, rd = 0;
+    uint8_t shamt = 0;
     int32_t imm = 0;
     uint32_t addr = 0;
+    std::string raw_label = "";
     
     std::string str() const {
         std::ostringstream oss;
@@ -50,3 +52,5 @@ struct IRInstruction {
 using Instruction = IRInstruction;
 
 #endif // MIPS_IR_HPP
+
+
