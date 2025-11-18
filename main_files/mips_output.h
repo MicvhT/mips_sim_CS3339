@@ -8,7 +8,7 @@
 #include <iomanip>
 #include <cstdint>
 
-class WordMemory;  // Forward decl (defined in mips_pipeline.cpp or wherever)
+class WordMemory;  
 
 class OutputManager {
 public:
@@ -23,7 +23,7 @@ public:
     void printFinalState(const std::array<int32_t, 32>& regs,
                          const WordMemory& mem) const;
 
-    // Simple debug per cycle (no PipelineState needed)
+    // Simple debug per cycle 
     void printInstructionDebug(
         const std::string& instruction,
         uint32_t pc,
@@ -47,3 +47,4 @@ private:
 };
 
 #endif
+
