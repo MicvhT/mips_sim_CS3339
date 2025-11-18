@@ -38,20 +38,14 @@ constexpr int NUM_REGS = 32;
 constexpr int MEM_SIZE = 1024; // in words (4 bytes per word)
 
 //
-// ---------- Enums and Structs ----------
+// ---------- Enums ----------
 //
 enum class Opcode {
     ADD, ADDI, SUB, MUL, AND, OR,
     SLL, SRL, LW, SW, BEQ, J, NOP, INVALID
 };
 
-struct Instruction {
-    Opcode opcode = Opcode::INVALID;
-    int rd = 0, rs = 0, rt = 0;
-    int immediate = 0;
-    uint32_t address = 0;
-    string raw;
-};
+
 
 //
 // ---------- Register File ----------
@@ -127,33 +121,7 @@ public:
     }
 };
 
-//
-// ---------- Pipeline Registers ----------
-//
-struct IF_ID {
-    uint32_t pc = 0;
-    optional<Instruction> instr;
-};
 
-struct ID_EX {
-    Opcode opcode = Opcode::INVALID;
-    int rs = 0, rt = 0, rd = 0;
-    int32_t regVal1 = 0, regVal2 = 0;
-    int immediate = 0;
-};
-
-struct EX_MEM {
-    Opcode opcode = Opcode::INVALID;
-    int rd = 0;
-    int32_t aluResult = 0;
-    int32_t regVal2 = 0; // for store
-};
-
-struct MEM_WB {
-    Opcode opcode = Opcode::INVALID;
-    int rd = 0;
-    int32_t writeData = 0;
-};
 
 //
 // ---------- Utility Functions ----------
@@ -179,3 +147,4 @@ inline Opcode strToOpcode(const string &s) {
 
 
 #endif // MIPS_CORE_H_INCLUDED
+
