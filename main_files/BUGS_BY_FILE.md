@@ -249,7 +249,6 @@ DecodedInstruction decode(uint32_t instruction) {
 - Uses `Memory` from `mips_core.h` but pipeline uses `WordMemory`
 - Methods like `getRegister()`, `readWord()`, `hadMemoryWrite()`, `getPC()`, etc. don't exist
 
-**Status:** These files are completely unused (dead code). 
 
 **Options:**
 1. **Delete them** (recommended if not needed)
