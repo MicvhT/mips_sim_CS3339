@@ -1,6 +1,6 @@
 // mips_output.cpp
 #include "mips_output.h"
-#include "mips_pipeline.h"   // Correct include — NOT .cpp ! This is critical
+#include "mips_pipeline.h"  
 
 OutputManager::OutputManager() = default;
 OutputManager::~OutputManager() = default;
@@ -88,3 +88,4 @@ void OutputManager::printHeader(const std::string& title) const {
 void OutputManager::printSeparator() const {
     std::cout << std::string(80, '-') << std::endl;
 }
+
