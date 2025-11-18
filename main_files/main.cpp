@@ -1,3 +1,4 @@
+//main.cpp
 #include "mips_ir.hpp"
 #include "mips_core.h"
 #include "mips_pipeline.h"
@@ -138,3 +139,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
