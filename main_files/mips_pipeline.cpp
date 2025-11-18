@@ -3,6 +3,7 @@
 // Build standalone test:
 // g++ -std=c++17 -O2 -Wall -Wextra mips_pipeline.cpp -o mips_sim
 
+#include "mips_ir.hpp"
 #include <array>
 #include <cstdint>
 #include <exception>
@@ -15,7 +16,9 @@ using namespace std;
 // ---------------- minimal helpers ----------------
 using RegFile = array<int32_t, 32>;
 
-static inline int32_t sign_extend_16(int32_t x) { return static_cast<int16_t>(x); }
+static inline int32_t sign_extend_16(int32_t x) {
+    return static_cast<int16_t>(x);
+}
 
 // simple word-addressed memory (4-byte aligned)
 class WordMemory {
@@ -53,28 +56,41 @@ struct Control {
     bool Jump{false};
     bool ALUSrc{false};
     bool RegDst{false};
-    uint8_t ALUOp{0}; // 0=ADD,1=SUB,2=AND,3=OR,4=SLT,5=MUL,6=SLL,7=SRL
+    // 0=ADD,1=SUB,2=AND,3=OR,4=SLT,5=MUL,6=SLL,7=SRL
+    uint8_t ALUOp{0};
     bool isNOP{true};
 };
 static inline Control nop_ctrl() { return Control{}; }
 
-struct IF_ID { Instruction instr{}; uint32_t pc{0}; bool valid{false}; };
+struct IF_ID {
+    Instruction instr{};
+    uint32_t pc{0};
+    bool valid{false};
+};
+
 struct ID_EX {
-    Control c{}; uint32_t pc{0};
+    Control c{};
+    uint32_t pc{0};
     int32_t rs_val{0}, rt_val{0};
     uint8_t rs{0}, rt{0}, rd{0};
     int32_t imm{0};
     bool valid{false};
 };
+
 struct EX_MEM {
-    Control c{}; int32_t alu_out{0}; int32_t rt_val_forwarded{0};
+    Control c{};
+    int32_t alu_out{0};
+    int32_t rt_val_forwarded{0};
     uint8_t dest{0};
     bool branch_taken{false};
     uint32_t branch_target{0};
     bool valid{false};
 };
+
 struct MEM_WB {
-    Control c{}; int32_t mem_data{0}; int32_t alu_out{0};
+    Control c{};
+    int32_t mem_data{0};
+    int32_t alu_out{0};
     uint8_t dest{0};
     bool valid{false};
 };
@@ -85,7 +101,10 @@ public:
     MIPSPipeline(const vector<Instruction>& program,
                  size_t memory_words = (1u << 16),
                  bool trace = false)
-        : prog_(program), mem_(memory_words), trace_(trace) {
+        // Bug 2: respect member declaration order (regs_, mem_, prog_, ...)
+        : mem_(memory_words),
+          prog_(program),
+          trace_(trace) {
         regs_.fill(0);
     }
 
@@ -102,13 +121,14 @@ public:
                 regs_[mem_wb_.dest] = val;
             }
         }
-        if (mem_wb_.valid && !mem_wb_.c.isNOP && last_retired_halt_) halted_ = true;
+        if (mem_wb_.valid && !mem_wb_.c.isNOP && last_retired_halt_)
+            halted_ = true;
 
         // ===== MEM =====
         MEM_WB new_mem_wb{};
-        new_mem_wb.c      = ex_mem_.c;
-        new_mem_wb.valid  = ex_mem_.valid;
-        new_mem_wb.dest   = ex_mem_.dest;
+        new_mem_wb.c       = ex_mem_.c;
+        new_mem_wb.valid   = ex_mem_.valid;
+        new_mem_wb.dest    = ex_mem_.dest;
         new_mem_wb.alu_out = ex_mem_.alu_out;
 
         if (ex_mem_.valid && !ex_mem_.c.isNOP) {
@@ -150,9 +170,12 @@ public:
         }
 
         int32_t aluA = fwdA;
-        int32_t aluB = id_ex_.c.ALUSrc ? id_ex_.imm : fwdB;
-        int32_t alu_out = 0;
-        bool    branch_taken  = false;
+        // Bug 5: sign-extend immediates before ALU use
+        int32_t imm_se = sign_extend_16(id_ex_.imm);
+        int32_t aluB   = id_ex_.c.ALUSrc ? imm_se : fwdB;
+
+        int32_t  alu_out       = 0;
+        bool     branch_taken  = false;
         uint32_t branch_target = 0;
 
         if (id_ex_.valid && !id_ex_.c.isNOP) {
@@ -163,10 +186,10 @@ public:
                 case 3: alu_out = aluA | aluB; break;
                 case 4: alu_out = (aluA < aluB) ? 1 : 0; break;
                 case 5: alu_out = fwdA * fwdB; break;           // MUL
-                case 6:  // SLL: shift rt by imm (shamt)
+                case 6: // SLL: shift rt by shamt (imm)
                     alu_out = (int32_t)((uint32_t)fwdB << (id_ex_.imm & 31));
                     break;
-                case 7:  // SRL: shift rt by imm (shamt)
+                case 7: // SRL: shift rt by shamt (imm)
                     alu_out = (int32_t)((uint32_t)fwdB >> (id_ex_.imm & 31));
                     break;
                 default: alu_out = 0; break;
@@ -177,12 +200,15 @@ public:
                 bool is_bne = (curr_id_op_ == Op::BNE);
                 bool eq     = (fwdA == fwdB);
                 branch_taken  = (is_beq && eq) || (is_bne && !eq);
-                branch_target = id_ex_.pc + 4 + ((int32_t)id_ex_.imm << 2);
+                // Bug 5: sign-extend imm before shifting
+                branch_target = id_ex_.pc + 4 +
+                                (sign_extend_16(id_ex_.imm) << 2);
             }
             if (id_ex_.c.Jump) {
                 branch_taken  = true;
-                branch_target = (id_ex_.pc & 0xF0000000u) |
-                                (id_ex_.imm & 0x0FFFFFFFu);
+                // Bug 6 (Option 2): imm holds the 26-bit word address; shift here
+                uint32_t target = (id_ex_.imm & 0x03FFFFFFu) << 2;
+                branch_target   = (id_ex_.pc & 0xF0000000u) | target;
             }
         }
 
@@ -202,11 +228,15 @@ public:
             new_id_ex.rd     = if_id_.instr.rd;
             new_id_ex.rs_val = rs_val;
             new_id_ex.rt_val = rt_val;
-            new_id_ex.imm    = (if_id_.instr.op == Op::J)
-                                 ? (int32_t)(if_id_.instr.addr << 2)
-                                 : if_id_.instr.imm;
-            new_id_ex.valid  = true;
-            curr_id_op_      = if_id_.instr.op;
+
+            // Bug 6: don't shift J target here; keep raw 26-bit word index
+            if (if_id_.instr.op == Op::J)
+                new_id_ex.imm = static_cast<int32_t>(if_id_.instr.addr);
+            else
+                new_id_ex.imm = if_id_.instr.imm;
+
+            new_id_ex.valid = true;
+            curr_id_op_     = if_id_.instr.op;
             last_retired_halt_ = (if_id_.instr.op == Op::HALT);
         } else {
             new_id_ex.c = nop_ctrl();
@@ -215,12 +245,14 @@ public:
             last_retired_halt_ = false;
         }
 
-        // load-use hazard detection (LW followed by consumer)
+        // ===== hazard detection (load-use) =====
         bool stall = false;
         if (id_ex_.valid && id_ex_.c.MemRead) {
-            uint8_t load_dest = id_ex_.c.RegDst ? id_ex_.rd : id_ex_.rt; // LW uses rt
+            // Bug 3: LW always writes RT, regardless of RegDst
+            uint8_t load_dest = id_ex_.rt;
             if (load_dest != 0 &&
-                (load_dest == if_id_.instr.rs || load_dest == if_id_.instr.rt)) {
+                (load_dest == if_id_.instr.rs ||
+                 load_dest == if_id_.instr.rt)) {
                 stall = true;
             }
         }
@@ -237,7 +269,7 @@ public:
                 new_if_id.valid = true;
                 next_pc += 4;
             } else {
-                new_if_id.instr = Instruction{};  // NOP
+                new_if_id.instr = Instruction{}; // NOP
                 new_if_id.valid = false;
             }
         } else {
@@ -276,8 +308,10 @@ private:
     tuple<Control, int32_t, int32_t> decode_in_id(const Instruction& ins) {
         Control c{};
         c.isNOP = (ins.op == Op::NOP);
-        int32_t rs_val = regs_[ins.rs];
-        int32_t rt_val = regs_[ins.rt];
+
+        // Bug 4: read protection for $0
+        int32_t rs_val = (ins.rs == 0) ? 0 : regs_[ins.rs];
+        int32_t rt_val = (ins.rt == 0) ? 0 : regs_[ins.rt];
 
         switch (ins.op) {
             case Op::ADD:
@@ -298,7 +332,7 @@ private:
             case Op::ADDI:
                 c = {true,false,false,false,false,false,true,false,0,false};
                 break;
-            case Op::LW:
+            case Op::LW:   // and L if parser maps L -> Op::LW
                 c = {true,true,false,true,false,false,true,false,0,false};
                 break;
             case Op::SW:
@@ -335,31 +369,33 @@ private:
         return {c, rs_val, rt_val};
     }
 
-    void dump_trace_line() const {
+        void dump_trace_line() const {
         auto show = [&](const Instruction& i){ return i.str(); };
+
         cout << dec << "Cyc " << cycles_
-             << " | PC=0x" << hex << pc_ << dec
-             << " | IF: "  << (if_id_.valid ? show(if_id_.instr) : "—")
-             << " | ID: "  << (id_ex_.valid && !id_ex_.c.isNOP ? "op" : "—")
-             << " | EX: "  << (ex_mem_.valid && !ex_mem_.c.isNOP ? "op" : "—")
-             << " | MEM: " << (mem_wb_.valid && !mem_wb_.c.isNOP ? "op" : "—")
-             << "\n";
+            << " | PC=0x" << hex << pc_ << dec
+            << " | IF: ";
+        if (if_id_.valid) cout << show(if_id_.instr);
+        else              cout << "-";
+
+        cout << " | ID: "  << (id_ex_.valid  && !id_ex_.c.isNOP   ? "op" : "-")
+            << " | EX: "  << (ex_mem_.valid && !ex_mem_.c.isNOP  ? "op" : "-")
+            << " | MEM: " << (mem_wb_.valid && !mem_wb_.c.isNOP  ? "op" : "-")
+            << "\n";
     }
 
 private:
-    // architectural state
-    RegFile     regs_{};
-    WordMemory  mem_;
+    // member declaration order (used for Bug 2)
+    RegFile regs_{};
+    WordMemory mem_;
     vector<Instruction> prog_;
 
-    // pipeline state
     uint32_t pc_{0};
     IF_ID if_id_{};
     ID_EX id_ex_{};
     EX_MEM ex_mem_{};
     MEM_WB mem_wb_{};
 
-    // book-keeping
     uint64_t cycles_{0};
     bool trace_{false};
     bool halted_{false};
@@ -367,15 +403,15 @@ private:
     Op  curr_id_op_{Op::NOP};
 };
 
-// Optional: tiny standalone smoke test
+// Optional standalone test
 #ifdef MIPS_PIPELINE_STANDALONE_MAIN
 int main() {
     vector<Instruction> prog = {
-        {Op::ADDI, 0, 8, 0, 4, 0},           // t0 = 4
-        {Op::ADDI, 0, 9, 0, 3, 0},           // t1 = 3
-        {Op::MUL,  8, 9,10, 0, 0},           // t2 = t0 * t1 = 12
-        {Op::SLL,  0,10,11, 1, 0},           // SLL t3, t2, 1 -> 24
-        {Op::SRL,  0,11,12, 2, 0},           // SRL t4, t3, 2 -> 6
+        {Op::ADDI, 0, 8, 0, 4, 0},   // t0 = 4
+        {Op::ADDI, 0, 9, 0, 3, 0},   // t1 = 3
+        {Op::MUL,  8, 9,10, 0, 0},   // t2 = t0 * t1 = 12
+        {Op::SLL,  0,10,11, 1, 0},   // t3 = t2 << 1 = 24
+        {Op::SRL,  0,11,12, 2, 0},   // t4 = t3 >> 2 = 6
         {Op::HALT, 0, 0, 0, 0, 0}
     };
 
