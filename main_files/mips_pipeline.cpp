@@ -1,4 +1,4 @@
-// mips_pipeline.cpp
+mips_pipeline.cpp
 // 5-stage pipelined MIPS simulator with hazards & forwarding.
 // Build standalone test:
 // g++ -std=c++17 -O2 -Wall -Wextra mips_pipeline.cpp -o mips_sim
@@ -72,7 +72,8 @@ void MIPSPipeline::step() {
                 regs_[mem_wb_.dest] = val;
             }
         }
-        if (mem_wb_.valid && !mem_wb_.c.isNOP && last_retired_halt_)
+        // Check if HALT instruction is completing in WB stage
+        if (mem_wb_.valid && mem_wb_.is_halt)
             halted_ = true;
 
         // ===== MEM =====
@@ -81,6 +82,7 @@ void MIPSPipeline::step() {
         new_mem_wb.valid   = ex_mem_.valid;
         new_mem_wb.dest    = ex_mem_.dest;
         new_mem_wb.alu_out = ex_mem_.alu_out;
+        new_mem_wb.is_halt = ex_mem_.is_halt;  // Propagate HALT flag
 
         if (ex_mem_.valid && !ex_mem_.c.isNOP) {
             if (ex_mem_.c.MemRead)
@@ -105,6 +107,7 @@ void MIPSPipeline::step() {
         new_ex_mem.c     = id_ex_.c;
         new_ex_mem.valid = id_ex_.valid;
         new_ex_mem.dest  = id_ex_.c.RegDst ? id_ex_.rd : id_ex_.rt;
+        new_ex_mem.is_halt = id_ex_.is_halt;  // Propagate HALT flag
 
         // forwarding
         int32_t fwdA = id_ex_.rs_val;
@@ -190,11 +193,13 @@ void MIPSPipeline::step() {
                 new_id_ex.imm = if_id_.instr.imm;
 
             new_id_ex.valid = true;
+            new_id_ex.is_halt = (if_id_.instr.op == Op::HALT);
             curr_id_op_     = if_id_.instr.op;
             last_retired_halt_ = (if_id_.instr.op == Op::HALT);
         } else {
             new_id_ex.c = MIPSPipeline::nop_ctrl();
             new_id_ex.valid = false;
+            new_id_ex.is_halt = false;
             curr_id_op_ = Op::NOP;
             last_retired_halt_ = false;
         }
