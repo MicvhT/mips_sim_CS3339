@@ -1,4 +1,4 @@
-mips_pipeline.cpp
+// mips_pipeline.cpp
 // 5-stage pipelined MIPS simulator with hazards & forwarding.
 // Build standalone test:
 // g++ -std=c++17 -O2 -Wall -Wextra mips_pipeline.cpp -o mips_sim
