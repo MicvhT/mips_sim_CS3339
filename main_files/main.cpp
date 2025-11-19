@@ -58,15 +58,18 @@ Instruction parseInstruction(const string& line) {
             instr.rt = stoi(reg3.substr(reg3.find('$') + 1));
             break;
 
-        case Op::SLL: case Op::SRL:
+        case Op::SLL: case Op::SRL: {
+            int shamt_val;
             iss >> reg1;
             if (iss.peek() == ',') iss.ignore();
             iss >> reg2;
             if (iss.peek() == ',') iss.ignore();
-            iss >> instr.shamt;
+            iss >> shamt_val;
+            instr.shamt = static_cast<uint8_t>(shamt_val);
             instr.rd = stoi(reg1.substr(reg1.find('$') + 1));
             instr.rt = stoi(reg2.substr(reg2.find('$') + 1));
             break;
+        }
 
         case Op::ADDI:
             iss >> reg1;
