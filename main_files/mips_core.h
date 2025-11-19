@@ -107,7 +107,8 @@ inline Opcode strToOpcode(const string &s) {
     return (it != table.end()) ? it->second : Opcode::INVALID;
 }
 
-#endif 
+#endif  
+
 
 
 
