@@ -53,4 +53,3 @@ using Instruction = IRInstruction;
 
 #endif // MIPS_IR_HPP
 
-
