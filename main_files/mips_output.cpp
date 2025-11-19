@@ -88,4 +88,3 @@ void OutputManager::printHeader(const std::string& title) const {
 void OutputManager::printSeparator() const {
     std::cout << std::string(80, '-') << std::endl;
 }
-
