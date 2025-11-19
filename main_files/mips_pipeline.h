@@ -87,6 +87,7 @@ private:
         uint8_t rs{0}, rt{0}, rd{0};
         int32_t imm{0};
         bool valid{false};
+        bool is_halt{false};  // Track if this instruction is a HALT
     };
     
     struct EX_MEM {
@@ -97,6 +98,7 @@ private:
         bool branch_taken{false};
         uint32_t branch_target{0};
         bool valid{false};
+        bool is_halt{false};  // Track if this instruction is a HALT
     };
     
     struct MEM_WB {
@@ -105,6 +107,7 @@ private:
         int32_t alu_out{0};
         uint8_t dest{0};
         bool valid{false};
+        bool is_halt{false};  // Track if this instruction is a HALT
     };
     
     IF_ID if_id_{};
