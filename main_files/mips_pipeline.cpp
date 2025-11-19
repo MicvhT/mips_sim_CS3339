@@ -3,114 +3,65 @@
 // Build standalone test:
 // g++ -std=c++17 -O2 -Wall -Wextra mips_pipeline.cpp -o mips_sim
 
+#include "mips_pipeline.h"
 #include "mips_ir.hpp"
-#include <array>
 #include <cstdint>
-#include <exception>
-#include <iomanip>
 #include <iostream>
 #include <vector>
+#include <tuple>
 
 using namespace std;
 
 // ---------------- minimal helpers ----------------
-using RegFile = array<int32_t, 32>;
-
 static inline int32_t sign_extend_16(int32_t x) {
     return static_cast<int16_t>(x);
 }
 
-// simple word-addressed memory (4-byte aligned)
-class WordMemory {
-public:
-    explicit WordMemory(size_t words) : data_(words, 0) {}
-    size_t words() const { return data_.size(); }
+// WordMemory implementation
+WordMemory::WordMemory(size_t words) : data_(words, 0) {}
 
-    int32_t load_word(uint32_t byte_addr) const {
-        if (byte_addr % 4 != 0) throw runtime_error("Unaligned LW");
-        size_t idx = byte_addr / 4;
-        if (idx >= data_.size()) throw runtime_error("Out-of-bounds LW");
-        return data_[idx];
-    }
-    void store_word(uint32_t byte_addr, int32_t value) {
-        if (byte_addr % 4 != 0) throw runtime_error("Unaligned SW");
-        size_t idx = byte_addr / 4;
-        if (idx >= data_.size()) throw runtime_error("Out-of-bounds SW");
-        data_[idx] = value;
-    }
+size_t WordMemory::words() const {
+    return data_.size();
+}
 
-    const vector<int32_t>& raw() const { return data_; }
-    vector<int32_t>& raw() { return data_; }
+int32_t WordMemory::load_word(uint32_t byte_addr) const {
+    if (byte_addr % 4 != 0) throw runtime_error("Unaligned LW");
+    size_t idx = byte_addr / 4;
+    if (idx >= data_.size()) throw runtime_error("Out-of-bounds LW");
+    return data_[idx];
+}
 
-private:
-    vector<int32_t> data_;
-};
+void WordMemory::store_word(uint32_t byte_addr, int32_t value) {
+    if (byte_addr % 4 != 0) throw runtime_error("Unaligned SW");
+    size_t idx = byte_addr / 4;
+    if (idx >= data_.size()) throw runtime_error("Out-of-bounds SW");
+    data_[idx] = value;
+}
 
-// ---------------- pipeline control + latches ----------------
-struct Control {
-    bool RegWrite{false};
-    bool MemRead{false};
-    bool MemWrite{false};
-    bool MemToReg{false};
-    bool Branch{false};
-    bool Jump{false};
-    bool ALUSrc{false};
-    bool RegDst{false};
-    // 0=ADD,1=SUB,2=AND,3=OR,4=SLT,5=MUL,6=SLL,7=SRL
-    uint8_t ALUOp{0};
-    bool isNOP{true};
-};
-static inline Control nop_ctrl() { return Control{}; }
+const std::vector<int32_t>& WordMemory::raw() const {
+    return data_;
+}
 
-struct IF_ID {
-    Instruction instr{};
-    uint32_t pc{0};
-    bool valid{false};
-};
-
-struct ID_EX {
-    Control c{};
-    uint32_t pc{0};
-    int32_t rs_val{0}, rt_val{0};
-    uint8_t rs{0}, rt{0}, rd{0};
-    int32_t imm{0};
-    bool valid{false};
-};
-
-struct EX_MEM {
-    Control c{};
-    int32_t alu_out{0};
-    int32_t rt_val_forwarded{0};
-    uint8_t dest{0};
-    bool branch_taken{false};
-    uint32_t branch_target{0};
-    bool valid{false};
-};
-
-struct MEM_WB {
-    Control c{};
-    int32_t mem_data{0};
-    int32_t alu_out{0};
-    uint8_t dest{0};
-    bool valid{false};
-};
+std::vector<int32_t>& WordMemory::raw() {
+    return data_;
+}
 
 // ---------------- the simulator ----------------
-class MIPSPipeline {
-public:
-    MIPSPipeline(const vector<Instruction>& program,
-                 size_t memory_words = (1u << 16),
-                 bool trace = false)
-        // Bug 2: respect member declaration order (regs_, mem_, prog_, ...)
-        : mem_(memory_words),
-          prog_(program),
-          trace_(trace) {
-        regs_.fill(0);
-    }
+MIPSPipeline::MIPSPipeline(const vector<Instruction>& program,
+             size_t memory_words,
+             bool trace)
+    // Bug 2: respect member declaration order (regs_, mem_, prog_, ...)
+    : mem_(memory_words),
+      prog_(program),
+      trace_(trace) {
+    regs_.fill(0);
+}
 
-    void run() { while (!isHalted()) step(); }
+void MIPSPipeline::run() {
+    while (!isHalted()) step();
+}
 
-    void step() {
+void MIPSPipeline::step() {
         if (halted_) return;
         cycles_++;
 
@@ -232,6 +183,9 @@ public:
             // Bug 6: don't shift J target here; keep raw 26-bit word index
             if (if_id_.instr.op == Op::J)
                 new_id_ex.imm = static_cast<int32_t>(if_id_.instr.addr);
+            else if (if_id_.instr.op == Op::SLL || if_id_.instr.op == Op::SRL)
+                // SLL/SRL use shamt field, not imm
+                new_id_ex.imm = static_cast<int32_t>(if_id_.instr.shamt);
             else
                 new_id_ex.imm = if_id_.instr.imm;
 
@@ -239,7 +193,7 @@ public:
             curr_id_op_     = if_id_.instr.op;
             last_retired_halt_ = (if_id_.instr.op == Op::HALT);
         } else {
-            new_id_ex.c = nop_ctrl();
+            new_id_ex.c = MIPSPipeline::nop_ctrl();
             new_id_ex.valid = false;
             curr_id_op_ = Op::NOP;
             last_retired_halt_ = false;
@@ -276,7 +230,7 @@ public:
             // hold IF/ID, insert bubble into ID/EX
             new_if_id = if_id_;
             new_id_ex = {};
-            new_id_ex.c     = nop_ctrl();
+            new_id_ex.c     = MIPSPipeline::nop_ctrl();
             new_id_ex.valid = true;
         }
 
@@ -294,18 +248,18 @@ public:
         pc_     = next_pc;
 
         if (trace_) dump_trace_line();
-    }
+}
 
-    bool isHalted() const { return halted_; }
+bool MIPSPipeline::isHalted() const {
+    return halted_;
+}
 
-    const RegFile& regs() const { return regs_; }
-    const WordMemory& memory() const { return mem_; }
-    WordMemory& memory() { return mem_; }
-    uint64_t cycles() const { return cycles_; }
+uint64_t MIPSPipeline::cycles() const {
+    return cycles_;
+}
 
-private:
-    // ===== decode in ID =====
-    tuple<Control, int32_t, int32_t> decode_in_id(const Instruction& ins) {
+// ===== decode in ID =====
+std::tuple<MIPSPipeline::Control, int32_t, int32_t> MIPSPipeline::decode_in_id(const Instruction& ins) {
         Control c{};
         c.isNOP = (ins.op == Op::NOP);
 
@@ -363,45 +317,26 @@ private:
                 c = {true,false,false,false,false,false,true,true,7,false};
                 break;
             case Op::NOP:
-                c = nop_ctrl();
+                c = MIPSPipeline::nop_ctrl();
                 break;
         }
         return {c, rs_val, rt_val};
-    }
+}
 
-        void dump_trace_line() const {
-        auto show = [&](const Instruction& i){ return i.str(); };
+void MIPSPipeline::dump_trace_line() const {
+    auto show = [&](const Instruction& i){ return i.str(); };
 
-        cout << dec << "Cyc " << cycles_
-            << " | PC=0x" << hex << pc_ << dec
-            << " | IF: ";
-        if (if_id_.valid) cout << show(if_id_.instr);
-        else              cout << "-";
+    cout << dec << "Cyc " << cycles_
+        << " | PC=0x" << hex << pc_ << dec
+        << " | IF: ";
+    if (if_id_.valid) cout << show(if_id_.instr);
+    else              cout << "-";
 
-        cout << " | ID: "  << (id_ex_.valid  && !id_ex_.c.isNOP   ? "op" : "-")
-            << " | EX: "  << (ex_mem_.valid && !ex_mem_.c.isNOP  ? "op" : "-")
-            << " | MEM: " << (mem_wb_.valid && !mem_wb_.c.isNOP  ? "op" : "-")
-            << "\n";
-    }
-
-private:
-    // member declaration order (used for Bug 2)
-    RegFile regs_{};
-    WordMemory mem_;
-    vector<Instruction> prog_;
-
-    uint32_t pc_{0};
-    IF_ID if_id_{};
-    ID_EX id_ex_{};
-    EX_MEM ex_mem_{};
-    MEM_WB mem_wb_{};
-
-    uint64_t cycles_{0};
-    bool trace_{false};
-    bool halted_{false};
-    bool last_retired_halt_{false};
-    Op  curr_id_op_{Op::NOP};
-};
+    cout << " | ID: "  << (id_ex_.valid  && !id_ex_.c.isNOP   ? "op" : "-")
+        << " | EX: "  << (ex_mem_.valid && !ex_mem_.c.isNOP  ? "op" : "-")
+        << " | MEM: " << (mem_wb_.valid && !mem_wb_.c.isNOP  ? "op" : "-")
+        << "\n";
+}
 
 // Optional standalone test
 #ifdef MIPS_PIPELINE_STANDALONE_MAIN
